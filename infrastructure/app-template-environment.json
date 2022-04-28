@@ -18,6 +18,22 @@
       "defaultValue": "kv-avmdemoapp-dev",
       "type": "string"
     },
+    "databaseAdministratorLogin": {
+      "defaultValue": "avmdemoapp",
+      "type": "string",
+      "minLength": 1,
+      "metadata": {
+        "description": "Database administrator login name"
+      }
+    },
+    "databaseAdministratorLoginPassword": {
+      "type": "securestring",
+      "minLength": 24,
+      "maxLength": 128,
+      "metadata": {
+        "description": "Database administrator password"
+      }
+    },
     "withPostgre": {
       "type": "string",
       "defaultValue": "false"

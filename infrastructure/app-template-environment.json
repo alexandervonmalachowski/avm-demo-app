@@ -42,6 +42,7 @@
   "variables": {
     "serverFarmName": "[concat('plan-avmdemoapp-', parameters('appSuffix'), '-' ,  parameters('environmentName'))]",
     "appServiceName": "[concat('app-avmdemoapp-',  parameters('appSuffix'), '-' , parameters('environmentName'))]",
+    "keyVaultUrl": "[concat('https://', parameters('keyVaultName'), '-', parameters('environmentName'), '.vault.azure.net')]",
     "databaseServerName": "[concat('psql-avmdemoapp-' , parameters('environmentName'))]",
     "databaseAdministratorLogin": "[parameters('databaseAdministratorLogin')]",
     "databaseAdministratorLoginPassword": "[parameters('databaseAdministratorLoginPassword')]",

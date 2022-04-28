@@ -1,0 +1,24 @@
+version: "3.9" # requires Docker Engine 19.03.0+
+services:
+  api:
+    build: .
+    image: benodejs-api:latest
+    init: true
+    depends_on:
+      - db
+    env_file:
+      - .env
+    environment:
+      # Secrets override
+      - "DB_CONNECTION_STRING=postgresql://postgres:example@db:5432/postgres"
+      - "API_SECRETS=${API_SECRETS}"
+
+    ports:
+      - "8000:8000"
+  db:
+    image: postgres:11
+    restart: always
+    ports:
+      - 5432:5432
+    environment:
+      POSTGRES_PASSWORD: example

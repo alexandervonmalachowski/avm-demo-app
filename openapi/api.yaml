@@ -1,0 +1,220 @@
+openapi: 3.0.0
+info:
+  description: Node API
+  version: "0.0.1"
+  title: Node API
+security:
+  - bearerAuthentication: []
+paths:
+  "/v1/product":
+    get:
+      tags: [product]
+      summary: Search products
+      description: |
+        Search products
+        All of the query parameters are listed as optional, but in reality exactly one parameter is required.
+        TODO: update specification to match.
+      operationId: searchProducts
+      parameters:
+        - description: Search products by product name
+          name: productName
+          in: query
+          required: false
+          schema:
+            type: string
+        - description: Search products by generic terms
+          name: terms
+          in: query
+          required: false
+          style: form
+          explode: true
+          schema:
+            type: array
+            minItems: 1
+            maxItems: 10
+            items:
+              type: string
+      responses:
+        "200":
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProductSearch"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+  "/v1/product/{productId}":
+    get:
+      tags: [product]
+      summary: Get product
+      operationId: getProductById
+      description: |
+        Get product by productId, i.e {itemType}-{itemNo}
+      parameters:
+        - description: Product Id, in {itemType}-{itemNo} format
+          name: productId
+          in: path
+          required: true
+          schema:
+            type: string
+            example: "ART-10218027"
+      responses:
+        "200":
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Product"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+components:
+  securitySchemes:
+    bearerAuthentication:
+      description: |
+        Reminders:
+          - Authentication = You can prove that you are who you claim to be.
+          - Authorization = You are allowed to do what you attempt to do.
+
+        The API requires authenticated requests, with a valid [ID_TOKEN](https://docs.microsoft.com/en-us/azure/active-directory/develop/id-tokens) from the openId scheme below.
+        But the API does not itself participate in the authentication flow.
+
+        The authentication token must also contain the authenticated users `roles`, which are used for authorization.
+        Azure Active Directory is the only supported authentication, which is why the `roles` can be used.
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+    openId:
+      description: |
+        OpenID connect authentication scheme, from Azure Active Directory for the a33c6ac4-a52e-45c5-af07-b972df9bd004 tenant.
+
+        This is where and how the API client needs to obtain a valid [ID_TOKEN](https://docs.microsoft.com/en-us/azure/active-directory/develop/id-tokens).
+      type: openIdConnect
+      openIdConnectUrl: https://login.microsoftonline.com/a33c6ac4-a52e-45c5-af07-b972df9bd004/v2.0/.well-known/openid-configuration
+
+  responses:
+    BadRequest:
+      description: Invalid or malformed input
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorMessage"
+    NotFound:
+      description: The specified resource was not found
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorMessage"
+    Unauthorized:
+      description: Access token is missing or invalid.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorMessage"
+    Forbidden:
+      description: Access token is valid, but does not contain the roles required.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorMessage"
+    Deleted:
+      description: Deleted resource
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/DeletedMessage"
+
+  schemas:
+    # Product model
+    Product:
+      type: object
+      required:
+        - productId
+        - itemName
+        - typeName
+        - productName
+        - hfbName
+      properties:
+        productId:
+          description: ItemType-itemNo (PI-API ref, itemType and itemNo)
+          type: string
+        itemName:
+          description: (PIA-API ref, itemNameEn)
+          type: string
+        typeName:
+          description: Type of product e.g shelf (PI-API ref, productType.productTypeName)
+          type: string
+        productName:
+          description: Name of the product (PI-API ref, productName.productName)
+          type: string
+        custBenText:
+          description: Description of the product (PI-API ref, customerBenefitSummary.custBenText)
+          type: string
+        hfbName:
+          description: (PI-API ref, businessStructure.hfbName)
+          type: string
+        requiresAssembly:
+          description: (PI-API ref, attribute.requiresAssembly)
+          type: boolean
+        validDesignText:
+          description: Color (PI-API ref, validDesign.validDesignText)
+          type: string
+        itemMedia:
+          description: Must not be empty (PI-API ref, itemMedia)
+          type: array
+          items:
+            $ref: "#/components/schemas/ItemMedia"
+    ItemMedia:
+      type: object
+      required:
+        - mediaTypeNo
+        - mediaQuality
+        - href
+      properties:
+        mediaTypeNo:
+          description: (PI-API ref, itemMedia.mediaContent.mediaTypeNo)
+          type: string
+        mediaQuality:
+          description: Image quality S1-S5 (PI-API ref, itemMedia.mediaContent.mediaQuality)
+          type: string
+        href:
+          description: image link (PI-API ref, itemMedia.mediaContent._links.download.href)
+          type: string
+    ProductSearch:
+      type: object
+      required:
+        - items
+      properties:
+        items:
+          description: List of search results
+          type: array
+          items:
+            $ref: "#/components/schemas/Product"
+
+    # Errors
+    ErrorMessage:
+      type: object
+      properties:
+        error:
+          type: object
+          properties:
+            message:
+              type: string
+
+    # Deleted
+    DeletedMessage:
+      type: object
+      properties:
+        deleted:
+          type: string

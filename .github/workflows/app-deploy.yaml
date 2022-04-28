@@ -1,0 +1,119 @@
+name: Deploy BE
+
+on:
+  push:
+    branches:
+      - "main"
+      - "qa-be"
+      - "prod-be"
+
+  pull_request:
+    branches-ignore:
+      - "qa-be"
+      - "prod-be"
+      - "qa-fe"
+      - "prod-fe"
+
+  workflow_dispatch:
+    inputs:
+      deploymentTarget:
+        description: "The non-prod deployment environment to use. (prod won't work)"
+        required: true
+        default: unstable
+
+env:
+  CI: true
+  NODE_VERSION: 16.x
+  AZURE_SUBSCRIPTION: mr-creative-tech
+  AZURE_APP_REGISTRATION: ar-avm-demo
+  AZURE_SUBSCRIPTION_PROD: mr-creative-tech
+  AZURE_APP_REGISTRATION_PROD: ar-avm-demo
+  APP_SUFFIX: be
+
+jobs:
+  Build-and-Deploy-BE:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: "checkout source"
+        uses: actions/checkout@v2
+
+      - name: "install nodejs"
+        uses: actions/setup-node@v1
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: "set yarn cache dir"
+        run: echo CACHE_DIR=$(yarn config get cacheFolder) >> $GITHUB_ENV
+
+      - name: "cache yarn cache dir"
+        uses: actions/cache@v2
+        with:
+          path: ${{ env.CACHE_DIR }}
+          key: ${{ runner.os }}-yarn_cache-${{ hashFiles('**/yarn.lock') }}
+
+      - name: "login to azure - non prod"
+        if: ${{ github.ref != 'refs/heads/prod-be' }}
+        uses: azure/login@v1
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: "login to azure - prod"
+        if: ${{ github.ref == 'refs/heads/prod-be' }}
+        uses: azure/login@v1
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS_PROD }}
+
+      - run: env
+      - run: pwd
+      - run: ls -al
+      - run: git --version
+      - run: node --version
+      - run: yarn --version
+      - run: az --version
+      - run: docker --version
+      - run: docker-compose --version
+
+      - name: "start containers"
+        run: |
+          docker-compose -f "docker-compose-test-dependencies.yml" up -d --build
+          docker ps
+
+      - name: "install dependencies"
+        run: |
+          yarn install --immutable
+
+      - name: "run tests"
+        # We can only deploy commits comming from QA. Since we have run the test in dev and qa, we dont need to run them agin.
+        if: ${{ github.ref != 'refs/heads/prod-be' }}
+        run: |
+          yarn run check
+          SKIP_AZ_LOGIN=true ./with-local-env.sh yarn run test
+
+      - name: "stop containers"
+        if: always()
+        run: docker-compose -f "docker-compose-test-dependencies.yml" down
+
+      - name: "run build on pull request (only for verification)"
+        if: ${{ github.event_name == 'pull_request' }}
+        run: yarn run build
+
+      - name: "deploy for push to main"
+        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+        run: ./infrastructure/app-deploy.sh dev $APP_SUFFIX $AZURE_SUBSCRIPTION $AZURE_APP_REGISTRATION
+
+      - name: "deploy for push to qa-be"
+        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/qa-be' }}
+        run: ./infrastructure/app-deploy.sh qa $APP_SUFFIX $AZURE_SUBSCRIPTION $AZURE_APP_REGISTRATION
+
+      - name: "deploy for push to prod-be"
+        if: ${{ github.ref == 'refs/heads/prod-be' }}
+        run: ./infrastructure/app-deploy.sh prod $APP_SUFFIX $AZURE_SUBSCRIPTION_PROD $AZURE_APP_REGISTRATION_PROD
+
+      - name: "deploy for manual trigger"
+        if: ${{ github.event_name == 'workflow_dispatch' }}
+        run: ./infrastructure/app-deploy.sh ${{ github.event.inputs.deploymentTarget }} $APP_SUFFIX $AZURE_APP_REGISTRATION_PROD
+
+      - name: "azure logout"
+        if: always()
+        run: az logout

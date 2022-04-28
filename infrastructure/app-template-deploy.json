@@ -1,0 +1,136 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "environmentName": {
+      "defaultValue": "dev",
+      "type": "string"
+    },
+    "containerRegistryName": {
+      "defaultValue": "cravmdemoappdev",
+      "type": "string"
+    },
+    "containerImageName": {
+      "defaultValue": "avmdemoapp-be",
+      "type": "string"
+    },
+    "containerImageVersion": {
+      "defaultValue": "0.0.1",
+      "type": "string"
+    },
+    "keyVaultName": {
+      "defaultValue": "kv-avmdemoapp-dev",
+      "type": "string"
+    },
+    "keyVaultUrl": {
+      "defaultValue": "https://kv-avmdemoapp-dev.vault.azure.net",
+      "type": "string"
+    },
+    "aadClientId": {
+      "defaultValue": "",
+      "type": "string"
+    },
+    "appSuffix": {
+      "defaultValue": "be",
+      "type": "string"
+    },
+    "withPostgre": {
+      "type": "string",
+      "defaultValue": "false"
+    }
+  },
+  "variables": {
+    "appServiceName": "[concat('app-avmdemoapp-', parameters('appSuffix'), '-' , parameters('environmentName'))]",
+    "containerImage": "[concat(parameters('containerRegistryName'), '.azurecr.io/', parameters('containerImageName'), ':', parameters('containerImageVersion'))]",
+    "registryResourceId": "[resourceId(subscription().subscriptionId, resourceGroup().name, 'Microsoft.ContainerRegistry/registries', parameters('containerRegistryName'))]",
+    "databaseConnectionStringKeyVaultName": "[concat('database-connection-string-url-encoded-', parameters('environmentName'))]",
+    "databaseConnectionString": "[concat('@Microsoft.KeyVault(SecretUri=', parameters('keyVaultUrl'), '/secrets/', variables('databaseConnectionStringKeyVaultName'), '/)')]",
+    "apiSecrets": "[concat('@Microsoft.KeyVault(SecretUri=', parameters('keyVaultUrl'), '/secrets/', parameters('appSuffix'), '-', parameters('environmentName'), '/)')]"
+  },
+  "resources": [
+    {
+      "type": "Microsoft.Web/sites/config",
+      "apiVersion": "2018-11-01",
+      "name": "[concat(variables('appServiceName'), '/web')]",
+      "properties": {
+        "linuxFxVersion": "[concat('DOCKER|', variables('containerImage'))]",
+        "httpLoggingEnabled": true,
+        "logsDirectorySizeLimit": 35,
+        "alwaysOn": true,
+        "minTlsVersion": "1.2",
+        "ftpsState": "Disabled",
+        "detailedErrorLoggingEnabled": true
+      }
+    },
+    {
+      "condition": "[equals(parameters('withPostgre'), 'false')]",
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2020-10-01",
+      "name": "[concat('app-template-deploy-kv-', parameters('appSuffix'), '-', parameters('environmentName'))]",
+      "resourceGroup": "[resourceGroup().name]",
+      "subscriptionId": "[subscription().subscriptionId]",
+      "comments": "Implicit dependency on [resourceId(subscription().subscriptionId, rg-alexvm-, parameters('environmentName'), 'Microsoft.KeyVault/vaults', parameters('keyVaultName'))]",
+      "properties": {
+        "mode": "Incremental",
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "resources": [
+            {
+              "type": "Microsoft.Web/sites/config",
+              "apiVersion": "2018-11-01",
+              "name": "[concat(variables('appServiceName'), '/appsettings')]",
+              "properties": {
+                "DOCKER_REGISTRY_SERVER_URL": "[reference(variables('registryResourceId'), '2019-05-01').loginServer]",
+                "DOCKER_REGISTRY_SERVER_USERNAME": "[listCredentials(variables('registryResourceId'), '2019-05-01').username]",
+                "DOCKER_REGISTRY_SERVER_PASSWORD": "[listCredentials(variables('registryResourceId'), '2019-05-01').passwords[0].value]",
+                "CONTAINER_IMAGE": "[variables('containerImage')]",
+                "TENANT_ID": "[subscription().tenantId]",
+                "AAD_CLIENT_ID": "[parameters('aadClientId')]",
+                "AZURE_KEYVAULT_URL": "[parameters('keyVaultUrl')]",
+                "API_KEYVAULT_NAME": "[parameters('keyVaultName')]",
+                "API_SECRETS": "[variables('apiSecrets')]"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "condition": "[equals(parameters('withPostgre'), 'true')]",
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2020-10-01",
+      "name": "[concat('app-psql-template-deploy-kv-', parameters('appSuffix'), '-', parameters('environmentName'))]",
+      "resourceGroup": "[resourceGroup().name]",
+      "subscriptionId": "[subscription().subscriptionId]",
+      "comments": "Implicit dependency on [resourceId(subscription().subscriptionId, rg-alexvm-, parameters('environmentName'), 'Microsoft.KeyVault/vaults', parameters('keyVaultName'))]",
+      "properties": {
+        "mode": "Incremental",
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "resources": [
+            {
+              "type": "Microsoft.Web/sites/config",
+              "apiVersion": "2018-11-01",
+              "name": "[concat(variables('appServiceName'), '/appsettings')]",
+              "properties": {
+                "DOCKER_REGISTRY_SERVER_URL": "[reference(variables('registryResourceId'), '2019-05-01').loginServer]",
+                "DOCKER_REGISTRY_SERVER_USERNAME": "[listCredentials(variables('registryResourceId'), '2019-05-01').username]",
+                "DOCKER_REGISTRY_SERVER_PASSWORD": "[listCredentials(variables('registryResourceId'), '2019-05-01').passwords[0].value]",
+                "CONTAINER_IMAGE": "[variables('containerImage')]",
+                "TENANT_ID": "[subscription().tenantId]",
+                "AAD_CLIENT_ID": "[parameters('aadClientId')]",
+                "AZURE_KEYVAULT_URL": "[parameters('keyVaultUrl')]",
+                "API_KEYVAULT_NAME": "[parameters('keyVaultName')]",
+                "API_SECRETS": "[variables('apiSecrets')]",
+                "DB_CONNECTION_STRING_KEYVAULT_NAME": "[variables('databaseConnectionStringKeyVaultName')]",
+                "DB_CONNECTION_STRING": "[variables('databaseConnectionString')]"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,10 @@
+{
+  "generator-creative-tech": {
+    "author": "alexandervonmalachowski",
+    "email": "alexander.vonmalachowski@gmail.com",
+    "url": "https://github.com/alexandervonmalachowski",
+    "repo": "git@github.com:alexandervonmalachowski/avm-demo-app.git",
+    "name": "avm-demo-app",
+    "feature": "azure"
+  }
+}

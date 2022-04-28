@@ -1,0 +1,272 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "environmentName": {
+      "defaultValue": "dev",
+      "type": "string"
+    },
+    "appSuffix": {
+      "defaultValue": "be",
+      "type": "string"
+    },
+    "objectId": {
+      "defaultValue": "",
+      "type": "string"
+    },
+    "keyVaultName": {
+      "defaultValue": "kv-avmdemoapp-dev",
+      "type": "string"
+    },
+    "withPostgre": {
+      "type": "string",
+      "defaultValue": "false"
+    }
+  },
+  "variables": {
+    "serverFarmName": "[concat('plan-avmdemoapp-', parameters('appSuffix'), '-' ,  parameters('environmentName'))]",
+    "appServiceName": "[concat('app-avmdemoapp-',  parameters('appSuffix'), '-' , parameters('environmentName'))]",
+    "databaseServerName": "[concat('psql-avmdemoapp-' , parameters('environmentName'))]",
+    "databaseAdministratorLogin": "[parameters('databaseAdministratorLogin')]",
+    "databaseAdministratorLoginPassword": "[parameters('databaseAdministratorLoginPassword')]",
+    "databaseAdministratorLoginUser": "[concat(uriComponent(concat(variables('databaseAdministratorLogin'), '@', variables('databaseServerName'))), ':', uriComponent(variables('databaseAdministratorLoginPassword')))]",
+    "databaseConnectionStringKeyVaultName": "[concat('database-connection-string-url-encoded-', parameters('environmentName'))]",
+    "databaseConnectionStringUrlEncoded": "[concat('postgresql://', variables('databaseAdministratorLoginUser'), '@', variables('databaseServerName'), '.postgres.database.azure.com:5432/postgres?sslmode=require')]",
+    "databaseConnectionString": "[concat('@Microsoft.KeyVault(SecretUri=', variables('keyVaultUrl'), '/secrets/', variables('databaseConnectionStringKeyVaultName'), '/)')]"
+  },
+  "outputs": {
+    "hostNames": {
+      "type": "array",
+      "value": "[reference(variables('appServiceName')).hostNames]"
+    }
+  },
+  "resources": [
+    {
+      "condition": "[equals(parameters('withPostgre'), 'true')]",
+      "type": "Microsoft.DBForPostgreSQL/servers",
+      "apiVersion": "2017-12-01",
+      "name": "[variables('databaseServerName')]",
+      "location": "[resourceGroup().location]",
+      "sku": {
+        "name": "B_Gen5_2",
+        "tier": "Basic",
+        "family": "Gen5",
+        "capacity": 2
+      },
+      "properties": {
+        "createMode": "Default",
+        "administratorLogin": "[variables('databaseAdministratorLogin')]",
+        "administratorLoginPassword": "[variables('databaseAdministratorLoginPassword')]",
+        "storageProfile": {
+          "storageMB": 51200,
+          "backupRetentionDays": 7,
+          "geoRedundantBackup": "Disabled",
+          "storageAutogrow": "Enabled"
+        },
+        "version": "11",
+        "sslEnforcement": "Enabled",
+        "minimalTlsVersion": "TLS1_2",
+        "infrastructureEncryption": "Disabled",
+        "publicNetworkAccess": "Enabled"
+      }
+    },
+    {
+      "condition": "[equals(parameters('withPostgre'), 'true')]",
+      "type": "Microsoft.DBForPostgreSQL/servers/databases",
+      "apiVersion": "2017-12-01",
+      "name": "[concat(variables('databaseServerName'), '/postgres')]",
+      "dependsOn": [
+        "[resourceId('Microsoft.DBforPostgreSQL/servers', variables('databaseServerName'))]"
+      ],
+      "properties": {
+        "charset": "UTF8",
+        "collation": "English_United States.1252"
+      }
+    },
+    {
+      "condition": "[equals(parameters('withPostgre'), 'true')]",
+      "type": "Microsoft.DBForPostgreSQL/servers/firewallRules",
+      "apiVersion": "2017-12-01",
+      "dependsOn": [
+        "[resourceId('Microsoft.DBForPostgreSQL/servers', variables('databaseServerName'))]"
+      ],
+      "location": "[resourceGroup().location]",
+      "name": "[concat(variables('databaseServerName'), '/AllowAzureIPs')]",
+      "properties": {
+        "startIpAddress": "0.0.0.0",
+        "endIpAddress": "0.0.0.0"
+      }
+    },
+    {
+      "type": "Microsoft.Web/serverfarms",
+      "apiVersion": "2018-02-01",
+      "name": "[variables('serverFarmName')]",
+      "location": "[resourceGroup().location]",
+      "sku": {
+        "name": "P1v2",
+        "tier": "PremiumV2",
+        "size": "P1v2",
+        "family": "Pv2",
+        "capacity": 1
+      },
+      "kind": "linux",
+      "properties": {
+        "perSiteScaling": false,
+        "maximumElasticWorkerCount": 1,
+        "isSpot": false,
+        "reserved": true,
+        "isXenon": false,
+        "hyperV": false,
+        "targetWorkerCount": 0,
+        "targetWorkerSizeId": 0
+      }
+    },
+    {
+      "type": "Microsoft.Web/sites",
+      "apiVersion": "2018-11-01",
+      "name": "[variables('appServiceName')]",
+      "location": "[resourceGroup().location]",
+      "dependsOn": [
+        "[resourceId('Microsoft.Web/serverfarms', variables('serverFarmName'))]"
+      ],
+      "kind": "app,linux,container",
+      "identity": {
+        "type": "SystemAssigned"
+      },
+      "properties": {
+        "enabled": true,
+        "hostNameSslStates": [
+          {
+            "name": "[concat(variables('appServiceName'), '.azurewebsites.net')]",
+            "sslState": "Disabled",
+            "hostType": "Standard"
+          },
+          {
+            "name": "[concat(variables('appServiceName'), '.scm.azurewebsites.net')]",
+            "sslState": "Disabled",
+            "hostType": "Repository"
+          }
+        ],
+        "serverFarmId": "[resourceId('Microsoft.Web/serverfarms', variables('serverFarmName'))]",
+        "reserved": true,
+        "isXenon": false,
+        "hyperV": false,
+        "scmSiteAlsoStopped": false,
+        "clientAffinityEnabled": false,
+        "clientCertEnabled": false,
+        "hostNamesDisabled": false,
+        "containerSize": 0,
+        "dailyMemoryTimeQuota": 0,
+        "httpsOnly": true,
+        "redundancyMode": "None"
+      }
+    },
+    {
+      "type": "Microsoft.Web/sites/hostNameBindings",
+      "apiVersion": "2018-11-01",
+      "name": "[concat(variables('appServiceName'), '/', variables('appServiceName'), '.azurewebsites.net')]",
+      "location": "[resourceGroup().location]",
+      "dependsOn": [
+        "[resourceId('Microsoft.Web/sites', variables('appServiceName'))]"
+      ],
+      "properties": {
+        "siteName": "[variables('appServiceName')]",
+        "hostNameType": "Verified"
+      }
+    },
+    {
+      "condition": "[equals(parameters('withPostgre'), 'false')]",
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2020-10-01",
+      "name": "[concat('app-template-environment-kv-', parameters('appSuffix'), '-' , parameters('environmentName'))]",
+      "resourceGroup": "[resourceGroup().name]",
+      "subscriptionId": "[subscription().subscriptionId]",
+      "comments": "Implicit dependency on [resourceId(subscription().subscriptionId, rg-alexvm-, parameters('environmentName'), 'Microsoft.KeyVault/vaults', parameters('keyVaultName'))]",
+      "properties": {
+        "mode": "Incremental",
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "resources": [
+            {
+              "type": "Microsoft.KeyVault/vaults/accessPolicies",
+              "apiVersion": "2019-09-01",
+              "name": "[concat(parameters('keyVaultName'), '/add')]",
+              "properties": {
+                "accessPolicies": [
+                  {
+                    "tenantId": "[reference(variables('appServiceName'), '2020-12-01', 'Full').identity.tenantId]",
+                    "objectId": "[reference(variables('appServiceName'), '2020-12-01', 'Full').identity.principalId]",
+                    "permissions": {
+                      "secrets": ["get"]
+                    }
+                  },
+                  {
+                    "tenantId": "[reference(variables('appServiceName'), '2020-12-01', 'Full').identity.tenantId]",
+                    "objectId": "[parameters('objectId')]",
+                    "permissions": {
+                      "secrets": ["get"]
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "condition": "[equals(parameters('withPostgre'), 'true')]",
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2020-10-01",
+      "name": "[concat('app-psql-template-environment-kv-', parameters('appSuffix'), '-' , parameters('environmentName'))]",
+      "resourceGroup": "[resourceGroup().name]",
+      "subscriptionId": "[subscription().subscriptionId]",
+      "comments": "Implicit dependency on [resourceId(subscription().subscriptionId, rg-alexvm-, parameters('environmentName'), 'Microsoft.KeyVault/vaults', parameters('keyVaultName'))]",
+      "properties": {
+        "mode": "Incremental",
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "resources": [
+            {
+              "type": "Microsoft.KeyVault/vaults/accessPolicies",
+              "apiVersion": "2019-09-01",
+              "name": "[concat(parameters('keyVaultName'), '/add')]",
+              "properties": {
+                "accessPolicies": [
+                  {
+                    "tenantId": "[reference(variables('appServiceName'), '2020-12-01', 'Full').identity.tenantId]",
+                    "objectId": "[reference(variables('appServiceName'), '2020-12-01', 'Full').identity.principalId]",
+                    "permissions": {
+                      "secrets": ["get"]
+                    }
+                  },
+                  {
+                    "tenantId": "[reference(variables('appServiceName'), '2020-12-01', 'Full').identity.tenantId]",
+                    "objectId": "[parameters('objectId')]",
+                    "permissions": {
+                      "secrets": ["get"]
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "type": "Microsoft.KeyVault/vaults/secrets",
+              "apiVersion": "2019-09-01",
+              "name": "[concat(parameters('keyVaultName'), '/', variables('databaseConnectionStringKeyVaultName'))]",
+              "properties": {
+                "value": "[variables('databaseConnectionStringUrlEncoded')]",
+                "contentType": "",
+                "attributes": {
+                  "enabled": "true"
+                }
+              }
+            }
+          ]
+        }
+      }
+    }
+  ]
+}

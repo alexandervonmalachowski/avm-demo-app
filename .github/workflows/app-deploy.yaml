@@ -74,26 +74,6 @@ jobs:
       - run: docker --version
       - run: docker-compose --version
 
-      - name: "start containers"
-        run: |
-          docker-compose -f "docker-compose-test-dependencies.yml" up -d --build
-          docker ps
-
-      - name: "install dependencies"
-        run: |
-          yarn install --immutable
-
-      - name: "run tests"
-        # We can only deploy commits comming from QA. Since we have run the test in dev and qa, we dont need to run them agin.
-        if: ${{ github.ref != 'refs/heads/prod-be' }}
-        run: |
-          yarn run check
-          SKIP_AZ_LOGIN=true ./with-local-env.sh yarn run test
-
-      - name: "stop containers"
-        if: always()
-        run: docker-compose -f "docker-compose-test-dependencies.yml" down
-
       - name: "run build on pull request (only for verification)"
         if: ${{ github.event_name == 'pull_request' }}
         run: yarn run build

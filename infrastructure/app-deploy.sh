@@ -118,7 +118,7 @@ echo "validate..."
 
 az deployment group validate \
     --resource-group "$group_env" \
-    --template-file infrastructure/app-template-deploy.json \
+    --template-file infrastructure/app-template-deploy-be.json \
     --parameters @infrastructure/parameters.json \
     --parameters "environmentName=$env" \
     --parameters "containerImageName=$containerImageName" \
@@ -135,7 +135,7 @@ echo "create..."
 
 az deployment group create \
     --resource-group "$group_env" \
-    --template-file infrastructure/app-template-deploy.json \
+    --template-file infrastructure/app-template-deploy-be.json \
     --parameters @infrastructure/parameters.json \
     --parameters "environmentName=$env" \
     --parameters "containerImageName=$containerImageName" \
@@ -152,7 +152,7 @@ az deployment group create \
 endpoint=$(
     az deployment group show \
         --resource-group "$group_env" \
-        --name 'app-template-deploy' \
+        --name 'app-template-deploy-be' \
         --query 'properties.outputs.hostNames.value[0]' \
         --output tsv
 )

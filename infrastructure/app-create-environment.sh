@@ -65,7 +65,7 @@ for cmd in 'validate' 'create' ; do
     echo "$cmd..."
     az deployment group $cmd \
         --resource-group "${group_env:?}" \
-        --template-file infrastructure/app-template-environment.json \
+        --template-file infrastructure/app-template-environment-be.json \
         --parameters @infrastructure/parameters.json \
         --parameters "environmentName=${env:?}" \
         --parameters "keyVaultName=${key_vault:?}" \
@@ -78,7 +78,7 @@ done
 
 az deployment group show \
     --resource-group "${group_env:?}" \
-    --name 'app-template-environment' \
+    --name 'app-template-environment-be' \
     --output table
 
 az deployment group show \

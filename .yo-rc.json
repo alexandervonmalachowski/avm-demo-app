@@ -5,6 +5,22 @@
     "url": "https://github.com/alexandervonmalachowski",
     "repo": "",
     "name": "avm-demo-app",
-    "feature": "azure"
+    "feature": "azure",
+    "confirmSetup": false,
+    "parts": [
+      "azure-app-service",
+      "azure-github-app"
+    ],
+    "accountName": "avmdemoapp",
+    "appRegistration": "ar-avm-demo",
+    "appRegistrationProd": "ar-avm-demo",
+    "subscription": "mr-creative-tech",
+    "subscriptionProd": "mr-creative-tech",
+    "resourceGroup": "rg-avmdemoapp",
+    "keyVault": "kv-avmdemoapp",
+    "containerRegistry": "cravmdemoapp",
+    "appSuffix": "be",
+    "withPostgre": "true",
+    "deployPrefix": "psql-"
   }
 }
